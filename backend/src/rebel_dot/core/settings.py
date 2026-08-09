@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     openai_timeout_seconds: float = Field(default=20, gt=0, le=120)
     openai_max_retries: int = Field(default=2, ge=0, le=5)
     embedding_batch_size: int = Field(default=64, ge=1, le=1000)
+    embedding_runner_enabled: bool = True
     job_poll_interval_seconds: float = Field(default=5, gt=0, le=300)
     job_stale_after_seconds: int = Field(default=300, ge=30, le=86400)
     max_question_chars: int = Field(default=2000, ge=1, le=16000)

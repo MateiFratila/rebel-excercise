@@ -16,6 +16,7 @@ from rebel_dot.application.authentication import (
     digest_session_token,
     generate_session_token,
 )
+from rebel_dot.core.observability import AUTH_ACTIVE_SESSIONS
 from rebel_dot.domain import AuthSession
 from rebel_dot.ports import UnitOfWork
 
@@ -36,6 +37,12 @@ class InMemorySessionRepository:
 
     async def add(self, session: AuthSession) -> None:
         self.records[session.token_digest] = session
+
+    async def count_active(self, now: datetime) -> int:
+        return sum(
+            session.expires_at > now and session.revoked_at is None
+            for session in self.records.values()
+        )
 
     async def get_by_digest(self, token_digest: str, now: datetime) -> AuthSession | None:
         session = self.records.get(token_digest)
@@ -138,6 +145,7 @@ async def test_session_lifecycle_stores_only_digest_and_does_not_slide_expiry() 
     }
     assert PASSWORD not in repr(tuple(sessions.records.values()))
     assert "first-token" not in repr(tuple(sessions.records.values()))
+    assert AUTH_ACTIVE_SESSIONS._value.get() == 2
 
     clock.current += timedelta(days=1)
     resolved = await service.resolve_session("first-token")
@@ -146,6 +154,7 @@ async def test_session_lifecycle_stores_only_digest_and_does_not_slide_expiry() 
     assert resolved.expires_at == first.expires_at
 
     assert await service.revoke_session("first-token")
+    assert AUTH_ACTIVE_SESSIONS._value.get() == 1
     assert not await service.revoke_session("first-token")
     assert await service.resolve_session("first-token") is None
 

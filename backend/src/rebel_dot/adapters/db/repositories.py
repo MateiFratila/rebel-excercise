@@ -361,6 +361,8 @@ class SQLAlchemyFAQRepository:
                 answer=record.answer_raw,
                 category=record.category,
                 similarity=1.0 - float(raw_distance),
+                collection_version=collection.version,
+                embedding_model=collection.embedding_model,
             )
             for record, raw_distance in rows
         )
@@ -476,6 +478,15 @@ class SQLAlchemySessionRepository:
                 last_seen_at=session.last_seen_at,
             )
         )
+
+    async def count_active(self, now: datetime) -> int:
+        count = await self._session.scalar(
+            select(func.count(AuthSessionRecord.id)).where(
+                AuthSessionRecord.expires_at > now,
+                AuthSessionRecord.revoked_at.is_(None),
+            )
+        )
+        return int(count or 0)
 
     async def get_by_digest(self, token_digest: str, now: datetime) -> AuthSession | None:
         record = await self._session.scalar(

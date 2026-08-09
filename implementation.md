@@ -1,7 +1,7 @@
 # Semantic FAQ Assistant Implementation Plan
 
-> Status: In progress
-> Current phase: Phase 8 - Containers, CI, observability, and documentation
+> Status: Mandatory delivery complete
+> Current phase: Phase 8 complete; optional Phases 9-10 deferred
 > Requirements baseline: [requirements.md](requirements.md)
 > Governing architecture: [architecture.md](architecture.md)
 > Last updated: 2026-08-09
@@ -110,12 +110,14 @@ Status markers:
 
 ### Phase 8: Containers, CI, Observability, and Documentation
 
-- [ ] Build one multi-stage, non-root image for compiled React assets plus API and runner commands.
-- [ ] Add Compose for API, PostgreSQL/pgvector, core runner, migration job, and optional Vite with health-based startup and named volumes.
-- [ ] Complete CI for backend/frontend checks, tests, empty migration, Compose smoke, production build, image scan, and secret scan without live OpenAI calls.
-- [ ] Add structured logs and metrics for requests, routes, scores, auth, providers, tokens/cost, and jobs, with redaction tests.
-- [ ] Document setup, authentication limitations, management, models, thresholds, evaluation, failures, and exact local commands.
-- [ ] Gate: a clean clone reaches a healthy authenticated app through documented commands; Compose smoke and Playwright pass; every mandatory claim maps to executable evidence.
+- [x] Build one multi-stage, non-root image for compiled React assets plus API and runner commands.
+- [x] Add Compose for API, PostgreSQL/pgvector, core runner, migration job, and optional Vite with health-based startup and named volumes.
+- [x] Complete CI for backend/frontend checks, tests, empty migration, Compose smoke, production build, image scan, and secret scan without live OpenAI calls.
+- [x] Add structured logs and metrics for requests, routes, scores, auth, providers, tokens/cost, and jobs, with redaction tests.
+- [x] Document setup, authentication limitations, management, models, thresholds, evaluation, failures, and exact local commands.
+- [x] Gate: a clean clone reaches a healthy authenticated app through documented commands; Compose smoke and Playwright pass; every mandatory claim maps to executable evidence.
+
+Phase 8 evidence on 2026-08-09: `make check` passed 76 backend tests at 90.72% coverage, 12 component tests, the production build, and 4 Playwright workflows against a fresh migrated database with no Alembic drift. `make evaluation`, `make security`, and `make compose-smoke` passed; the smoke proved real login/session/logout, one image digest, and non-root API/runner processes. Gitleaks found no history or working-tree leaks, exact challenge-key confinement passed, and Trivy found no fixed high/critical image vulnerabilities.
 
 ### Phase 9: Time-Boxed Celery/Redis Extension
 
@@ -134,10 +136,10 @@ Status markers:
 
 ## 4. Final Acceptance
 
-- [ ] Run static checks; unit, contract, integration, and Playwright tests; empty migration; 33-record import; all routes; session/CSRF cases; incremental jobs; failure behavior; evaluation regression; and image/Compose smoke.
-- [ ] Audit requirement traceability so every claimed capability has executable evidence.
-- [ ] Verify the challenge OpenAI key exists nowhere outside immutable [requirements.md](requirements.md), including history and generated artifacts.
-- [ ] Mark this plan complete only after the mandatory Phase 8 gate; report optional extension status separately.
+- [x] Run static checks; unit, contract, integration, and Playwright tests; empty migration; 33-record import; all routes; session/CSRF cases; incremental jobs; failure behavior; evaluation regression; and image/Compose smoke.
+- [x] Audit requirement traceability so every claimed capability has executable evidence.
+- [x] Verify the challenge OpenAI key exists nowhere outside immutable [requirements.md](requirements.md), including history and generated artifacts.
+- [x] Mark this plan complete only after the mandatory Phase 8 gate; report optional extension status separately.
 
 ## 5. Verification Commands
 

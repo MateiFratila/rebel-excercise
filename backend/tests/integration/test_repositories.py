@@ -306,7 +306,9 @@ async def test_repository_lifecycle_and_constraints(
     async with unit_of_work as transaction:
         resolved = await transaction.sessions.get_by_digest(auth_session.token_digest, now)
         assert resolved is not None and resolved.last_seen_at == now
+        assert await transaction.sessions.count_active(now) == 1
         assert await transaction.sessions.revoke(auth_session.token_digest, now)
+        assert await transaction.sessions.count_active(now) == 0
         assert not await transaction.sessions.revoke(auth_session.token_digest, now)
         assert await transaction.sessions.prune_expired(now) == 1
     async with unit_of_work as transaction:

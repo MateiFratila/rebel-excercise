@@ -74,10 +74,14 @@ class QuestionAnsweringService:
         if state.route is None or state.answer is None:
             raise RuntimeError("question workflow completed without an answer")
         matched_question = state.candidates[0].question if state.route is Route.LOCAL else None
+        top_candidate = state.candidates[0] if state.candidates else None
         return QuestionAnswer(
             source=AnswerSource(state.route.value),
             matched_question=matched_question,
             answer=state.answer,
+            top_similarity=top_candidate.similarity if top_candidate else None,
+            collection_version=top_candidate.collection_version if top_candidate else None,
+            embedding_model=top_candidate.embedding_model if top_candidate else None,
         )
 
     def _build_graph(

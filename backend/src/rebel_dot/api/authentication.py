@@ -10,6 +10,7 @@ from rebel_dot.application.authentication import (
     SessionService,
 )
 from rebel_dot.core import Settings
+from rebel_dot.core.observability import AUTH_EVENTS, logger
 from rebel_dot.domain import AuthSession, ErrorCode
 
 router = APIRouter(prefix="/auth/session", tags=["authentication"])
@@ -66,12 +67,16 @@ async def create_session(
     try:
         created = await service.create_session(payload.password, client_id)
     except InvalidCredentialsError as error:
+        AUTH_EVENTS.labels("invalid_credentials").inc()
+        logger.info("authentication_failed", outcome="invalid_credentials")
         raise APIError(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code=ErrorCode.AUTHENTICATION_REQUIRED,
             message="Authentication failed",
         ) from error
     except LoginRateLimitedError as error:
+        AUTH_EVENTS.labels("rate_limited").inc()
+        logger.info("authentication_failed", outcome="rate_limited")
         raise APIError(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             code=ErrorCode.RATE_LIMITED,
@@ -79,6 +84,8 @@ async def create_session(
             headers={"Retry-After": str(settings.login_rate_window_seconds)},
         ) from error
 
+    AUTH_EVENTS.labels("created").inc()
+    logger.info("authentication_succeeded", outcome="created")
     response.set_cookie(
         key=settings.session_cookie_name,
         value=created.token,
@@ -109,7 +116,9 @@ async def delete_session(
 ) -> None:
     token = request.cookies.get(settings.session_cookie_name)
     if token is not None:
-        await service.revoke_session(token)
+        revoked = await service.revoke_session(token)
+        AUTH_EVENTS.labels("revoked" if revoked else "not_found").inc()
+        logger.info("session_revoked", outcome="revoked" if revoked else "not_found")
     response.delete_cookie(
         key=settings.session_cookie_name,
         path="/",

@@ -63,6 +63,8 @@ def candidate(similarity: float = 0.95) -> RetrievalCandidate:
         answer="Go to settings and click on 'restore default'.",
         category="account",
         similarity=similarity,
+        collection_version=3,
+        embedding_model="text-embedding-3-small",
     )
 
 
@@ -96,6 +98,8 @@ async def test_local_answer_is_canonical_and_never_calls_chat() -> None:
     assert result.source is AnswerSource.LOCAL
     assert result.matched_question == "How can I restore my account settings?"
     assert result.answer == "Go to settings and click on 'restore default'."
+    assert result.collection_version == 3
+    assert result.embedding_model == "text-embedding-3-small"
     assert classifier.calls == ["How can I restore my account settings?"]
     assert retriever.calls == [("How can I restore my account settings?", 3)]
     assert chat.calls == []

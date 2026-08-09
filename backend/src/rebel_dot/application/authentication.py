@@ -11,6 +11,7 @@ from uuid import uuid4
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
+from rebel_dot.core.observability import AUTH_ACTIVE_SESSIONS
 from rebel_dot.domain import AuthSession
 from rebel_dot.ports import UnitOfWork
 
@@ -129,18 +130,23 @@ class SessionService:
         async with self._unit_of_work_factory() as unit_of_work:
             await unit_of_work.sessions.prune_expired(created_at)
             await unit_of_work.sessions.add(session)
+            AUTH_ACTIVE_SESSIONS.set(await unit_of_work.sessions.count_active(created_at))
 
         return CreatedSession(token=token, expires_at=session.expires_at)
 
     async def resolve_session(self, token: str) -> AuthSession | None:
         now = self._clock()
         async with self._unit_of_work_factory() as unit_of_work:
-            return await unit_of_work.sessions.get_by_digest(digest_session_token(token), now)
+            session = await unit_of_work.sessions.get_by_digest(digest_session_token(token), now)
+            AUTH_ACTIVE_SESSIONS.set(await unit_of_work.sessions.count_active(now))
+            return session
 
     async def revoke_session(self, token: str) -> bool:
         now = self._clock()
         async with self._unit_of_work_factory() as unit_of_work:
-            return await unit_of_work.sessions.revoke(digest_session_token(token), now)
+            revoked = await unit_of_work.sessions.revoke(digest_session_token(token), now)
+            AUTH_ACTIVE_SESSIONS.set(await unit_of_work.sessions.count_active(now))
+            return revoked
 
     def _verify_password(self, password: str) -> bool:
         try:

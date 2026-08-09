@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,7 +14,7 @@ from rebel_dot.adapters.db.database import create_database_engine, create_sessio
 from rebel_dot.adapters.db.unit_of_work import SQLAlchemyUnitOfWork
 from rebel_dot.adapters.openai_chat import OpenAIChatProvider, OpenAIScopeClassifier
 from rebel_dot.adapters.openai_embeddings import OpenAIEmbeddingProvider
-from rebel_dot.adapters.task_dispatcher import DatabaseTaskDispatcher
+from rebel_dot.adapters.task_dispatcher import DatabaseTaskDispatcher, PollingTaskDispatcher
 from rebel_dot.api.administration import router as administration_router
 from rebel_dot.api.authentication import router as authentication_router
 from rebel_dot.api.errors import install_error_handlers
@@ -33,6 +33,11 @@ from rebel_dot.application.routing import (
 )
 from rebel_dot.application.workflow import QuestionAnsweringService
 from rebel_dot.core import Environment, Settings
+from rebel_dot.core.observability import (
+    configure_observability,
+    metrics_response,
+    observe_http_request,
+)
 from rebel_dot.ports import (
     ChatProvider,
     EmbeddingProvider,
@@ -52,7 +57,7 @@ class ReadinessResponse(BaseModel):
 
 
 API_PATH_PREFIXES = frozenset(
-    {"admin", "ask-question", "auth", "docs", "health", "openapi.json", "redoc"}
+    {"admin", "ask-question", "auth", "docs", "health", "metrics", "openapi.json", "redoc"}
 )
 
 
@@ -67,6 +72,7 @@ def create_app(
     static_directory: str | Path | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings()  # type: ignore[call-arg]
+    configure_observability(resolved_settings.log_level)
     database_engine: AsyncEngine = create_database_engine(str(resolved_settings.database_url))
     session_factory = create_session_factory(database_engine)
 
@@ -138,17 +144,20 @@ def create_app(
         )
     managed_dispatcher: DatabaseTaskDispatcher | None = None
     if task_dispatcher is None:
-        runner = DatabaseEmbeddingRunner(
-            unit_of_work_factory=create_unit_of_work,
-            provider=embedding_provider,
-            batch_size=resolved_settings.embedding_batch_size,
-            stale_after_seconds=resolved_settings.job_stale_after_seconds,
-        )
-        managed_dispatcher = DatabaseTaskDispatcher(
-            runner,
-            poll_interval_seconds=resolved_settings.job_poll_interval_seconds,
-        )
-        task_dispatcher = managed_dispatcher
+        if resolved_settings.embedding_runner_enabled:
+            runner = DatabaseEmbeddingRunner(
+                unit_of_work_factory=create_unit_of_work,
+                provider=embedding_provider,
+                batch_size=resolved_settings.embedding_batch_size,
+                stale_after_seconds=resolved_settings.job_stale_after_seconds,
+            )
+            managed_dispatcher = DatabaseTaskDispatcher(
+                runner,
+                poll_interval_seconds=resolved_settings.job_poll_interval_seconds,
+            )
+            task_dispatcher = managed_dispatcher
+        else:
+            task_dispatcher = PollingTaskDispatcher()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -173,6 +182,7 @@ def create_app(
     app.state.retrieval_service = retrieval_service
     app.state.question_answerer = question_answerer
     app.state.task_dispatcher = task_dispatcher
+    app.middleware("http")(observe_http_request)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(resolved_settings.allowed_origins),
@@ -188,6 +198,10 @@ def create_app(
     @app.get("/health/live", response_model=HealthResponse, tags=["health"])
     async def health_live() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics(_request: Request) -> Response:
+        return metrics_response()
 
     @app.get(
         "/health/ready",

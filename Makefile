@@ -5,7 +5,7 @@ export TEST_DATABASE_URL ?= $(DATABASE_URL)
 
 BACKEND_CHECK_PROJECT ?= rebel_dot_check
 
-.PHONY: check security evaluation backend-check frontend-check backend-dev frontend-dev
+.PHONY: check security evaluation compose-smoke backend-check frontend-check backend-dev frontend-dev
 
 check: backend-check frontend-check
 
@@ -16,6 +16,7 @@ backend-check:
 	docker compose -p $(BACKEND_CHECK_PROJECT) up -d --wait postgres; \
 	cd backend; \
 	uv run alembic upgrade head; \
+	uv run alembic check; \
 	uv run ruff format --check .; \
 	uv run ruff check .; \
 	uv run mypy src; \
@@ -34,6 +35,9 @@ security:
 
 evaluation:
 	cd backend && uv run python -m rebel_dot.ops.evaluate --check
+
+compose-smoke:
+	./scripts/compose-smoke.sh
 
 backend-dev:
 	cd backend && uv run uvicorn rebel_dot.api.app:create_app --factory --reload

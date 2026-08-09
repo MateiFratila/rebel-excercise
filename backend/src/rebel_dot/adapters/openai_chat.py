@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from time import perf_counter
 from typing import Protocol, cast
 
 from langchain_core.exceptions import OutputParserException
@@ -7,6 +8,7 @@ from langchain_openai import ChatOpenAI
 from openai import APIConnectionError, APIError, APITimeoutError, RateLimitError
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError
 
+from rebel_dot.core.observability import logger, observe_provider
 from rebel_dot.domain import (
     AIProviderError,
     ProviderFailureKind,
@@ -75,11 +77,23 @@ class OpenAIScopeClassifier:
         self._client = client
 
     async def classify(self, question: str) -> ScopeResult:
-        result = await _invoke(
-            self._client,
-            (SystemMessage(_SCOPE_POLICY), HumanMessage(question)),
-            ScopeClassification,
-        )
+        started_at = perf_counter()
+        try:
+            result = await _invoke(
+                self._client,
+                (SystemMessage(_SCOPE_POLICY), HumanMessage(question)),
+                ScopeClassification,
+            )
+        except AIProviderError as error:
+            observe_provider("scope_classification", error.kind.value, started_at)
+            logger.warning(
+                "provider_request_failed",
+                provider="openai",
+                operation="scope_classification",
+                outcome=error.kind.value,
+            )
+            raise
+        observe_provider("scope_classification", "success", started_at)
         return ScopeResult(result.decision, result.confidence)
 
 
@@ -111,11 +125,23 @@ class OpenAIChatProvider:
         self._client = client
 
     async def answer(self, question: str) -> str:
-        result = await _invoke(
-            self._client,
-            (SystemMessage(_SUPPORT_POLICY), HumanMessage(question)),
-            SupportAnswer,
-        )
+        started_at = perf_counter()
+        try:
+            result = await _invoke(
+                self._client,
+                (SystemMessage(_SUPPORT_POLICY), HumanMessage(question)),
+                SupportAnswer,
+            )
+        except AIProviderError as error:
+            observe_provider("support_answer", error.kind.value, started_at)
+            logger.warning(
+                "provider_request_failed",
+                provider="openai",
+                operation="support_answer",
+                outcome=error.kind.value,
+            )
+            raise
+        observe_provider("support_answer", "success", started_at)
         return result.answer
 
 

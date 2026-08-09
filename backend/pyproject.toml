@@ -12,6 +12,7 @@ dependencies = [
     "langgraph>=1.0.10,<2",
     "openai>=2.53,<3",
     "pgvector>=0.4,<1",
+    "prometheus-client>=0.22,<1",
     "pydantic-settings>=2.10,<3",
     "sqlalchemy[asyncio]>=2.0,<3",
     "structlog>=25.4,<26",

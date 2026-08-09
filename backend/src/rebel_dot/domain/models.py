@@ -129,6 +129,8 @@ class RetrievalCandidate:
     answer: str
     category: str
     similarity: float
+    collection_version: int | None = None
+    embedding_model: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,3 +169,6 @@ class QuestionAnswer:
     source: AnswerSource
     matched_question: str | None
     answer: str
+    top_similarity: float | None = None
+    collection_version: int | None = None
+    embedding_model: str | None = None

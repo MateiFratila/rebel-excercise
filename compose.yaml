@@ -1,18 +1,40 @@
+x-app-environment: &app-environment
+  DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://faq:faq@postgres:5432/faq}
+  ENVIRONMENT: ${ENVIRONMENT:-local}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-replace-with-openai-api-key}
+  SHARED_PASSWORD_HASH: ${SHARED_PASSWORD_HASH:-replace-with-argon2id-hash}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+  EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+  CHAT_MODEL: ${CHAT_MODEL:-gpt-5.4-mini}
+  OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-20}
+  OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-2}
+  LOCAL_SIMILARITY_THRESHOLD: ${LOCAL_SIMILARITY_THRESHOLD:-0.84}
+  LOCAL_SIMILARITY_MARGIN: ${LOCAL_SIMILARITY_MARGIN:-0.08}
+  SCOPE_CONFIDENCE_THRESHOLD: ${SCOPE_CONFIDENCE_THRESHOLD:-0.75}
+  SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-faq_session}
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+  SESSION_LIFETIME_SECONDS: ${SESSION_LIFETIME_SECONDS:-604800}
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8000,http://127.0.0.1:5173,http://127.0.0.1:8000}
+  LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-5}
+  LOGIN_RATE_WINDOW_SECONDS: ${LOGIN_RATE_WINDOW_SECONDS:-60}
+  EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-64}
+  JOB_POLL_INTERVAL_SECONDS: ${JOB_POLL_INTERVAL_SECONDS:-5}
+  JOB_STALE_AFTER_SECONDS: ${JOB_STALE_AFTER_SECONDS:-300}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-app-service: &app-service
+  image: rebel-dot-app:${IMAGE_TAG:-local}
+  build:
+    context: .
+
 services:
   api:
-    build:
-      context: .
+    <<: *app-service
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://faq:faq@postgres:5432/faq}
-      ENVIRONMENT: ${ENVIRONMENT:-local}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-replace-with-openai-api-key}
-      SHARED_PASSWORD_HASH: ${SHARED_PASSWORD_HASH:-replace-with-argon2id-hash}
-      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8000}
-      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-5}
-      LOGIN_RATE_WINDOW_SECONDS: ${LOGIN_RATE_WINDOW_SECONDS:-60}
+      <<: *app-environment
+      EMBEDDING_RUNNER_ENABLED: "false"
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -25,9 +47,26 @@ services:
       retries: 10
       start_period: 5s
 
+  runner:
+    <<: *app-service
+    command: ["python", "-m", "rebel_dot.ops.run_embeddings"]
+    environment:
+      <<: *app-environment
+      EMBEDDING_RUNNER_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/rebel-dot-runner-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   migrate:
-    build:
-      context: .
+    <<: *app-service
     command: ["alembic", "upgrade", "head"]
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://faq:faq@postgres:5432/faq}
@@ -42,7 +81,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-faq}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-faq}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -51,5 +90,22 @@ services:
       timeout: 3s
       retries: 10
 
+  frontend:
+    image: node:22.18-alpine
+    profiles: ["dev"]
+    working_dir: /app
+    command: ["sh", "-c", "npm ci && npm run dev -- --host 0.0.0.0"]
+    environment:
+      VITE_API_TARGET: http://api:8000
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres-data:
+  frontend-node-modules:

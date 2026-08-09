@@ -42,6 +42,7 @@ jobs:
           python-version: "3.12"
       - run: uv sync --locked
       - run: uv run alembic upgrade head
+      - run: uv run alembic check
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy src
@@ -69,6 +70,30 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - run: npm audit --audit-level=high
+
+  image:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    env:
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.3"
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --project backend
+      - run: make compose-smoke
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rebel-dot-app:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
 
   secrets:
     runs-on: ubuntu-latest

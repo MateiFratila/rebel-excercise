@@ -3,6 +3,12 @@ from contextlib import suppress
 from uuid import UUID
 
 from rebel_dot.application.embeddings import DatabaseEmbeddingRunner
+from rebel_dot.core.observability import logger
+
+
+class PollingTaskDispatcher:
+    async def dispatch_embedding_job(self, _job_id: UUID) -> None:
+        return None
 
 
 class DatabaseTaskDispatcher:
@@ -44,4 +50,5 @@ class DatabaseTaskDispatcher:
             try:
                 await self._runner.run_until_idle()
             except Exception:
+                logger.error("embedding_runner_cycle_failed")
                 continue

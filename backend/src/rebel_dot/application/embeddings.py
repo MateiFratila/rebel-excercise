@@ -2,6 +2,7 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+from rebel_dot.core.observability import EMBEDDING_JOB_ITEMS, EMBEDDING_JOBS, logger
 from rebel_dot.domain import (
     CollectionStatus,
     EmbeddingJob,
@@ -99,14 +100,25 @@ class DatabaseEmbeddingRunner:
         if job is None:
             return False
 
+        EMBEDDING_JOBS.labels("claimed").inc()
+        logger.info(
+            "embedding_job_claimed",
+            job_id=str(job.id),
+            collection_id=str(job.collection_id),
+        )
         try:
             await self._run_job(job)
         except LookupError:
+            EMBEDDING_JOBS.labels("collection_unavailable").inc()
             async with self._unit_of_work_factory() as unit_of_work:
                 await unit_of_work.jobs.fail(job.id, "Collection is unavailable", self._clock())
         except Exception:
+            EMBEDDING_JOBS.labels("failed").inc()
             async with self._unit_of_work_factory() as unit_of_work:
                 await unit_of_work.jobs.fail(job.id, "Embedding job failed", self._clock())
+        else:
+            EMBEDDING_JOBS.labels("completed").inc()
+            logger.info("embedding_job_completed", job_id=str(job.id))
         return True
 
     async def _run_job(self, job: EmbeddingJob) -> None:
@@ -117,6 +129,7 @@ class DatabaseEmbeddingRunner:
         failed_count = 0
         error_summary: str | None = None
         if processed_count:
+            EMBEDDING_JOB_ITEMS.labels("already_satisfied").inc(processed_count)
             await self._record_progress(
                 job.id,
                 processed_count,
@@ -132,6 +145,7 @@ class DatabaseEmbeddingRunner:
                 )
             except EmbeddingProviderError:
                 failed_count += len(batch)
+                EMBEDDING_JOB_ITEMS.labels("provider_failed").inc(len(batch))
                 error_summary = "Embedding provider unavailable"
                 await self._record_progress(
                     job.id,
@@ -149,6 +163,8 @@ class DatabaseEmbeddingRunner:
             )
             processed_count += batch_processed
             failed_count += batch_failed
+            EMBEDDING_JOB_ITEMS.labels("embedded").inc(batch_processed)
+            EMBEDDING_JOB_ITEMS.labels("content_changed").inc(batch_failed)
             if batch_failed:
                 error_summary = "Content changed during embedding"
             await self._record_progress(
