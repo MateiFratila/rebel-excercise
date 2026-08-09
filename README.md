@@ -147,3 +147,9 @@ CI also runs an empty-migration check, Playwright, dependency audits, Gitleaks, 
 ## Architecture
 
 [architecture.md](architecture.md) is the governing design and [implementation.md](implementation.md) is the delivery ledger. The challenge requirements file is intentionally untracked because its supplied credential must not enter Git history.
+
+## Next Steps
+
+The intentionally deferred work is asynchronous scale-out and cloud deployment. Celery would be added as another `TaskDispatcher` adapter with Redis used only as its broker, while PostgreSQL remains authoritative for durable job state; an optional Compose profile would run that worker without changing the API contracts.
+
+Azure delivery would add Bicep assets for ACR, Container Apps API/runner/migration processes, PostgreSQL Flexible Server with pgvector, managed identity, secrets, networking, and Log Analytics. CI/CD would then publish the existing image once under an immutable commit-SHA tag, run migrations as a one-shot job, deploy revisions through GitHub OIDC, perform an authenticated smoke test, and retain the previous healthy revision for rollback. These deployment resources and release artifacts are not included in the completed mandatory scope.
