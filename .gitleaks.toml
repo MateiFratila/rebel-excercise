@@ -1,0 +1,5 @@
+title = "Rebel Dot secret scanning"
+
+[allowlist]
+description = "The immutable challenge baseline contains a provider key supplied by the author."
+paths = ['''^requirements\.md$''']

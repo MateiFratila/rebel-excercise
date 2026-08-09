@@ -1,0 +1,55 @@
+services:
+  api:
+    build:
+      context: .
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://faq:faq@postgres:5432/faq}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-replace-with-openai-api-key}
+      SHARED_PASSWORD_HASH: ${SHARED_PASSWORD_HASH:-replace-with-argon2id-hash}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8000}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-5}
+      LOGIN_RATE_WINDOW_SECONDS: ${LOGIN_RATE_WINDOW_SECONDS:-60}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  migrate:
+    build:
+      context: .
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://faq:faq@postgres:5432/faq}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-faq}
+      POSTGRES_USER: ${POSTGRES_USER:-faq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-faq}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

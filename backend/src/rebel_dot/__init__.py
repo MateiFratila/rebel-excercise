@@ -1,0 +1,1 @@
+"""Semantic FAQ Assistant backend."""

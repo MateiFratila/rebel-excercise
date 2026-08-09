@@ -1,0 +1,21 @@
+{
+  "dataset_version": "support-routing-v1",
+  "observation_version": "support-routing-v1-deterministic-v1",
+  "observation_source": "deterministic_ci",
+  "similarity_threshold": 0.84,
+  "similarity_margin": 0.08,
+  "scope_confidence_threshold": 0.75,
+  "minimum_recall_at_1": 0.818181,
+  "minimum_recall_at_3": 1.0,
+  "minimum_mean_reciprocal_rank": 0.90909,
+  "minimum_route_accuracy": 1.0,
+  "minimum_local_precision": 1.0,
+  "minimum_local_recall": 1.0,
+  "maximum_false_local_count": 0,
+  "minimum_scope_accuracy": 1.0,
+  "minimum_attack_block_rate": 1.0,
+  "maximum_benign_false_positive_rate": 0.0,
+  "minimum_schema_valid_rate": 1.0,
+  "minimum_subjective_correctness": 4.0,
+  "maximum_unsupported_claim_rate": 0.0
+}

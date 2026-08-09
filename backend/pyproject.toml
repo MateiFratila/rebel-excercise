@@ -1,0 +1,57 @@
+[project]
+name = "rebel-dot-backend"
+version = "0.1.0"
+description = "Semantic FAQ Assistant API"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.16,<2",
+    "argon2-cffi>=25.1,<26",
+    "asyncpg>=0.30,<1",
+    "fastapi>=0.116,<1",
+    "langchain-openai>=1.1.14,<2",
+    "langgraph>=1.0.10,<2",
+    "openai>=2.53,<3",
+    "pgvector>=0.4,<1",
+    "pydantic-settings>=2.10,<3",
+    "sqlalchemy[asyncio]>=2.0,<3",
+    "structlog>=25.4,<26",
+    "uvicorn[standard]>=0.35,<1",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28,<1",
+    "mypy>=1.17,<2",
+    "pip-audit>=2.10.1",
+    "pytest>=9.0.3,<10",
+    "pytest-asyncio>=1.1,<2",
+    "pytest-cov>=6.2,<7",
+    "ruff>=0.12,<1",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rebel_dot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["rebel_dot"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov=rebel_dot --cov-report=term-missing --cov-fail-under=90"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["integration: requires a migrated PostgreSQL/pgvector database"]
+
